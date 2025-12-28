@@ -712,21 +712,35 @@ func (s *Server) watchKeepAlive() {
 }
 
 // unifiedModelsHandler creates a unified handler for the /v1/models endpoint
-// that routes to different handlers based on the User-Agent header.
-// If User-Agent starts with "claude-cli", it routes to Claude handler,
-// otherwise it routes to OpenAI handler.
+// that routes to different handlers based on the User-Agent header and other indicators.
+//
+// Detection logic:
+//   - Anthropic SDK clients: anthropic-version header present OR User-Agent contains "anthropic"
+//   - Claude CLI clients: User-Agent starts with "claude-cli"
+//   - All others: OpenAI format
 func (s *Server) unifiedModelsHandler(openaiHandler *openai.OpenAIAPIHandler, claudeHandler *claude.ClaudeCodeAPIHandler) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userAgent := c.GetHeader("User-Agent")
+		anthropicVersion := c.GetHeader("anthropic-version")
+
+		// Route to Anthropic format if using Anthropic SDK
+		// Detection: anthropic-version header present OR User-Agent contains "anthropic"
+		if anthropicVersion != "" || strings.Contains(strings.ToLower(userAgent), "anthropic") {
+			// log.Debugf("Routing /v1/models to Anthropic handler for User-Agent: %s, anthropic-version: %s", userAgent, anthropicVersion)
+			claudeHandler.ClaudeModelsAnthropic(c)
+			return
+		}
 
 		// Route to Claude handler if User-Agent starts with "claude-cli"
 		if strings.HasPrefix(userAgent, "claude-cli") {
 			// log.Debugf("Routing /v1/models to Claude handler for User-Agent: %s", userAgent)
 			claudeHandler.ClaudeModels(c)
-		} else {
-			// log.Debugf("Routing /v1/models to OpenAI handler for User-Agent: %s", userAgent)
-			openaiHandler.OpenAIModels(c)
+			return
 		}
+
+		// Default to OpenAI handler
+		// log.Debugf("Routing /v1/models to OpenAI handler for User-Agent: %s", userAgent)
+		openaiHandler.OpenAIModels(c)
 	}
 }
 

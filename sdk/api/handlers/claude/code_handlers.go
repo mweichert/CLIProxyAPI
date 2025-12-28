@@ -133,6 +133,39 @@ func (h *ClaudeCodeAPIHandler) ClaudeModels(c *gin.Context) {
 	})
 }
 
+// AnthropicModels returns the list of models in Anthropic's native API format.
+// The response structure matches https://docs.anthropic.com/en/api/models-list
+func (h *ClaudeCodeAPIHandler) AnthropicModels() []map[string]any {
+	modelRegistry := registry.GetGlobalRegistry()
+	return modelRegistry.GetAvailableModels("anthropic")
+}
+
+// ClaudeModelsAnthropic handles the models listing endpoint for Anthropic SDK clients.
+// It returns a JSON response matching the official Anthropic API format.
+//
+// Parameters:
+//   - c: The Gin context for the request.
+func (h *ClaudeCodeAPIHandler) ClaudeModelsAnthropic(c *gin.Context) {
+	models := h.AnthropicModels()
+
+	response := gin.H{
+		"data":     models,
+		"has_more": false,
+	}
+
+	// Add first_id and last_id if models exist
+	if len(models) > 0 {
+		if firstID, ok := models[0]["id"].(string); ok {
+			response["first_id"] = firstID
+		}
+		if lastID, ok := models[len(models)-1]["id"].(string); ok {
+			response["last_id"] = lastID
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 // handleNonStreamingResponse handles non-streaming content generation requests for Claude models.
 // This function processes the request synchronously and returns the complete generated
 // response in a single API call. It supports various generation parameters and

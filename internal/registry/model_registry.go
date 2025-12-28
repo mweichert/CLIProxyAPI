@@ -783,6 +783,21 @@ func (r *ModelRegistry) convertModelToMap(model *ModelInfo, handlerType string) 
 		}
 		return result
 
+	case "anthropic":
+		// Anthropic API format per https://docs.anthropic.com/en/api/models-list
+		result := map[string]any{
+			"id":   model.ID,
+			"type": "model", // Anthropic API uses "model" as literal type, not provider name
+		}
+		if model.DisplayName != "" {
+			result["display_name"] = model.DisplayName
+		}
+		if model.Created > 0 {
+			// Convert Unix timestamp to ISO-8601 format
+			result["created_at"] = time.Unix(model.Created, 0).UTC().Format(time.RFC3339)
+		}
+		return result
+
 	case "gemini":
 		result := map[string]any{}
 		if model.Name != "" {
