@@ -218,3 +218,14 @@ ws-auth: false
 #           protocol: "codex" # restricts the rule to a specific protocol, options: openai, gemini, claude, codex
 #       params: # JSON path (gjson/sjson syntax) -> value
 #         "reasoning.effort": "high"
+
+# Traffic debug mode for capturing detailed request/response traffic
+# Logs to JSON Lines format for easy parsing and analysis
+# traffic-debug:
+#   client-requests: false      # Log incoming client requests to the proxy
+#   provider-requests: false    # Log outgoing requests to AI providers (Gemini, Claude, etc.)
+#   provider-responses: false   # Log responses from AI providers
+#   log-file: "traffic-debug.jsonl"  # Path to JSON Lines output file (relative to config dir)
+#   max-body-size: 10240        # Max body size in bytes to log (0 = unlimited, default 10KB)
+#   include-headers: true       # Include HTTP headers in logs
+#   mask-sensitive-headers: true # Mask sensitive header values (Authorization, API keys, etc.)

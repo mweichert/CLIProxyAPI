@@ -221,6 +221,12 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 		}
 	}
 
+	// Initialize traffic debug logger (JSON Lines format)
+	configDir := filepath.Dir(configFilePath)
+	if err := logging.InitGlobalTrafficLogger(&cfg.TrafficDebug, configDir); err != nil {
+		log.Warnf("failed to initialize traffic debug logger: %v", err)
+	}
+
 	engine.Use(corsMiddleware())
 	wd, err := os.Getwd()
 	if err != nil {
@@ -863,6 +869,12 @@ func (s *Server) UpdateClients(cfg *config.Config) {
 		} else {
 			log.Debugf("request logging toggled to %t", cfg.RequestLog)
 		}
+	}
+
+	// Update traffic debug logger configuration
+	configDir := filepath.Dir(s.configFilePath)
+	if err := logging.UpdateGlobalTrafficLogger(&cfg.TrafficDebug, configDir); err != nil {
+		log.Warnf("failed to update traffic debug logger: %v", err)
 	}
 
 	if oldCfg == nil || oldCfg.LoggingToFile != cfg.LoggingToFile || oldCfg.LogsMaxTotalSizeMB != cfg.LogsMaxTotalSizeMB {

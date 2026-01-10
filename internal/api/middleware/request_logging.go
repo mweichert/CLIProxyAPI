@@ -45,6 +45,17 @@ func RequestLoggingMiddleware(logger logging.RequestLogger) gin.HandlerFunc {
 			return
 		}
 
+		// Log client request to traffic debug logger if enabled
+		if trafficLogger := logging.GetGlobalTrafficLogger(); trafficLogger != nil && trafficLogger.IsClientRequestsEnabled() {
+			trafficLogger.LogClientRequest(
+				requestInfo.RequestID,
+				requestInfo.Method,
+				requestInfo.URL,
+				requestInfo.Headers,
+				requestInfo.Body,
+			)
+		}
+
 		// Create response writer wrapper
 		wrapper := NewResponseWriterWrapper(c.Writer, logger, requestInfo)
 		if !logger.IsEnabled() {

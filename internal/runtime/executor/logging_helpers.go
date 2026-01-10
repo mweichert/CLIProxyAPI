@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v6/internal/logging"
 	"github.com/router-for-me/CLIProxyAPI/v6/internal/util"
 )
 
@@ -48,6 +49,27 @@ type upstreamAttempt struct {
 
 // recordAPIRequest stores the upstream request metadata in Gin context for request logging.
 func recordAPIRequest(ctx context.Context, cfg *config.Config, info upstreamRequestLog) {
+	// Log to traffic debug logger if enabled
+	if trafficLogger := logging.GetGlobalTrafficLogger(); trafficLogger != nil && trafficLogger.IsProviderRequestsEnabled() {
+		ginCtx := ginContextFrom(ctx)
+		requestID := ""
+		if ginCtx != nil {
+			requestID = logging.GetGinRequestID(ginCtx)
+		}
+		attempts := getAttempts(ginCtx)
+		trafficLogger.LogProviderRequest(requestID, logging.ProviderRequestInfo{
+			Provider:  info.Provider,
+			AuthID:    info.AuthID,
+			AuthLabel: info.AuthLabel,
+			AuthType:  info.AuthType,
+			Method:    info.Method,
+			URL:       info.URL,
+			Headers:   info.Headers,
+			Body:      info.Body,
+			Attempt:   len(attempts) + 1,
+		})
+	}
+
 	if cfg == nil || !cfg.RequestLog {
 		return
 	}
@@ -95,6 +117,22 @@ func recordAPIRequest(ctx context.Context, cfg *config.Config, info upstreamRequ
 
 // recordAPIResponseMetadata captures upstream response status/header information for the latest attempt.
 func recordAPIResponseMetadata(ctx context.Context, cfg *config.Config, status int, headers http.Header) {
+	// Log to traffic debug logger if enabled (basic metadata only - status and headers)
+	// Full response body logging requires calling RecordProviderResponse explicitly from executors
+	if trafficLogger := logging.GetGlobalTrafficLogger(); trafficLogger != nil && trafficLogger.IsProviderResponsesEnabled() {
+		ginCtx := ginContextFrom(ctx)
+		requestID := ""
+		if ginCtx != nil {
+			requestID = logging.GetGinRequestID(ginCtx)
+		}
+		attempts := getAttempts(ginCtx)
+		trafficLogger.LogProviderResponse(requestID, logging.ProviderResponseInfo{
+			StatusCode: status,
+			Headers:    headers,
+			Attempt:    len(attempts),
+		})
+	}
+
 	if cfg == nil || !cfg.RequestLog {
 		return
 	}
@@ -117,6 +155,50 @@ func recordAPIResponseMetadata(ctx context.Context, cfg *config.Config, status i
 	}
 
 	updateAggregatedResponse(ginCtx, attempts)
+}
+
+// ProviderResponseParams holds parameters for logging a complete provider response.
+type ProviderResponseParams struct {
+	Provider    string
+	AuthID      string
+	StatusCode  int
+	Headers     http.Header
+	Body        []byte
+	IsStreaming bool
+	ChunkCount  int
+	TotalBytes  int
+	DurationMs  int64
+	Attempt     int
+	Error       error
+}
+
+// RecordProviderResponse logs a complete provider response to the traffic debug logger.
+// This should be called when a provider response is fully received.
+func RecordProviderResponse(ctx context.Context, params ProviderResponseParams) {
+	trafficLogger := logging.GetGlobalTrafficLogger()
+	if trafficLogger == nil || !trafficLogger.IsProviderResponsesEnabled() {
+		return
+	}
+
+	ginCtx := ginContextFrom(ctx)
+	requestID := ""
+	if ginCtx != nil {
+		requestID = logging.GetGinRequestID(ginCtx)
+	}
+
+	trafficLogger.LogProviderResponse(requestID, logging.ProviderResponseInfo{
+		Provider:    params.Provider,
+		AuthID:      params.AuthID,
+		StatusCode:  params.StatusCode,
+		Headers:     params.Headers,
+		Body:        params.Body,
+		IsStreaming: params.IsStreaming,
+		ChunkCount:  params.ChunkCount,
+		TotalBytes:  params.TotalBytes,
+		DurationMs:  params.DurationMs,
+		Attempt:     params.Attempt,
+		Error:       params.Error,
+	})
 }
 
 // recordAPIResponseError adds an error entry for the latest attempt when no HTTP response is available.

@@ -251,6 +251,31 @@ func BuildConfigChangeDetails(oldCfg, newCfg *config.Config) []string {
 		}
 	}
 
+	// TrafficDebug settings
+	if oldCfg.TrafficDebug.ClientRequests != newCfg.TrafficDebug.ClientRequests {
+		changes = append(changes, fmt.Sprintf("traffic-debug.client-requests: %t -> %t", oldCfg.TrafficDebug.ClientRequests, newCfg.TrafficDebug.ClientRequests))
+	}
+	if oldCfg.TrafficDebug.ProviderRequests != newCfg.TrafficDebug.ProviderRequests {
+		changes = append(changes, fmt.Sprintf("traffic-debug.provider-requests: %t -> %t", oldCfg.TrafficDebug.ProviderRequests, newCfg.TrafficDebug.ProviderRequests))
+	}
+	if oldCfg.TrafficDebug.ProviderResponses != newCfg.TrafficDebug.ProviderResponses {
+		changes = append(changes, fmt.Sprintf("traffic-debug.provider-responses: %t -> %t", oldCfg.TrafficDebug.ProviderResponses, newCfg.TrafficDebug.ProviderResponses))
+	}
+	oldLogFile := strings.TrimSpace(oldCfg.TrafficDebug.LogFile)
+	newLogFile := strings.TrimSpace(newCfg.TrafficDebug.LogFile)
+	if oldLogFile != newLogFile {
+		changes = append(changes, fmt.Sprintf("traffic-debug.log-file: %s -> %s", oldLogFile, newLogFile))
+	}
+	if oldCfg.TrafficDebug.MaxBodySize != newCfg.TrafficDebug.MaxBodySize {
+		changes = append(changes, fmt.Sprintf("traffic-debug.max-body-size: %d -> %d", oldCfg.TrafficDebug.MaxBodySize, newCfg.TrafficDebug.MaxBodySize))
+	}
+	if oldCfg.TrafficDebug.IncludeHeaders != newCfg.TrafficDebug.IncludeHeaders {
+		changes = append(changes, fmt.Sprintf("traffic-debug.include-headers: %t -> %t", oldCfg.TrafficDebug.IncludeHeaders, newCfg.TrafficDebug.IncludeHeaders))
+	}
+	if oldCfg.TrafficDebug.MaskSensitiveHeaders != newCfg.TrafficDebug.MaskSensitiveHeaders {
+		changes = append(changes, fmt.Sprintf("traffic-debug.mask-sensitive-headers: %t -> %t", oldCfg.TrafficDebug.MaskSensitiveHeaders, newCfg.TrafficDebug.MaskSensitiveHeaders))
+	}
+
 	return changes
 }
 

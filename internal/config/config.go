@@ -380,6 +380,11 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 	cfg.DisableCooling = false
 	cfg.AmpCode.RestrictManagementToLocalhost = false // Default to false: API key auth is sufficient
 	cfg.RemoteManagement.PanelGitHubRepository = DefaultPanelGitHubRepository
+	// TrafficDebug defaults
+	cfg.TrafficDebug.LogFile = "traffic-debug.jsonl"
+	cfg.TrafficDebug.MaxBodySize = 10240 // 10KB default
+	cfg.TrafficDebug.IncludeHeaders = true
+	cfg.TrafficDebug.MaskSensitiveHeaders = true
 	if err = yaml.Unmarshal(data, &cfg); err != nil {
 		if optional {
 			// In cloud deploy mode, if YAML parsing fails, return empty config instead of error.

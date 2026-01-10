@@ -25,6 +25,9 @@ type SDKConfig struct {
 
 	// Streaming configures server-side streaming behavior (keep-alives and safe bootstrap retries).
 	Streaming StreamingConfig `yaml:"streaming" json:"streaming"`
+
+	// TrafficDebug controls granular traffic debugging with JSON Lines output.
+	TrafficDebug TrafficDebugConfig `yaml:"traffic-debug" json:"traffic-debug"`
 }
 
 // StreamingConfig holds server streaming behavior configuration.
@@ -37,6 +40,32 @@ type StreamingConfig struct {
 	// to allow auth rotation / transient recovery.
 	// <= 0 disables bootstrap retries. Default is 0.
 	BootstrapRetries int `yaml:"bootstrap-retries,omitempty" json:"bootstrap-retries,omitempty"`
+}
+
+// TrafficDebugConfig controls granular traffic debugging/logging to JSON Lines format.
+type TrafficDebugConfig struct {
+	// ClientRequests enables logging of incoming client requests to the proxy.
+	ClientRequests bool `yaml:"client-requests" json:"client-requests"`
+
+	// ProviderRequests enables logging of outgoing requests to AI providers.
+	ProviderRequests bool `yaml:"provider-requests" json:"provider-requests"`
+
+	// ProviderResponses enables logging of responses from AI providers.
+	ProviderResponses bool `yaml:"provider-responses" json:"provider-responses"`
+
+	// LogFile is the path to the JSON Lines log file. Relative paths are resolved from the config directory.
+	// Supports ~ for home directory expansion.
+	LogFile string `yaml:"log-file" json:"log-file"`
+
+	// MaxBodySize limits body logging in bytes. Bodies larger than this are truncated.
+	// Set to 0 for unlimited (not recommended for production). Default is 10240 (10KB).
+	MaxBodySize int `yaml:"max-body-size" json:"max-body-size"`
+
+	// IncludeHeaders enables logging of HTTP headers. Default is true.
+	IncludeHeaders bool `yaml:"include-headers" json:"include-headers"`
+
+	// MaskSensitiveHeaders masks sensitive header values (Authorization, API keys, etc.). Default is true.
+	MaskSensitiveHeaders bool `yaml:"mask-sensitive-headers" json:"mask-sensitive-headers"`
 }
 
 // AccessConfig groups request authentication providers.
