@@ -1,0 +1,27 @@
+# Fork composition configuration
+# Defines how the 'fork' branch is built from upstream + feature branches
+#
+# Usage: go run scripts/build-fork.go
+#    or: python3 scripts/build-fork.py
+
+upstream:
+  remote: upstream
+  branch: main
+
+base: main  # Local branch that tracks upstream
+
+branches:
+  - name: feat/traffic-debug-mode
+    base: main
+    description: Add traffic debug mode for request/response logging
+    docs: branches/feat/traffic-debug-mode.md
+
+  - name: fix/anthropic-models-endpoint-format
+    base: main
+    description: Fix Anthropic models endpoint response format
+    docs: branches/fix/anthropic-models-endpoint-format.md
+
+  - name: feature/fork-management
+    base: main
+    description: Fork management infrastructure (build script, GHCR workflow, docs)
+    docs: branches/feature/fork-management.md
