@@ -47,6 +47,22 @@ jobs:
           <!-- cliproxyapi-linux-release-assets:end -->
           EOF
 
+          if [[ "$GITHUB_REF_NAME" == *-fork.* ]]; then
+            {
+              cat "$release_notes_file"
+              printf '\n## Fork composition\n\n'
+              printf 'This release is composed from documented fork branches. The upstream base and component branches are recorded in the fork workspace.\n\n'
+              git log --first-parent --max-count=12 --pretty=format:'- %s (%h)' "$GITHUB_REF_NAME"
+              printf '\n'
+            } > "$updated_notes_file"
+            if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+              gh release edit "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "$updated_notes_file"
+            else
+              gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "$updated_notes_file"
+            fi
+            exit 0
+          fi
+
           git fetch --force --tags
           previous_tag=""
           if previous_tag_value="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null)"; then
