@@ -126,6 +126,18 @@ func TestConfigSynthesizer_GeminiKeys(t *testing.T) {
 			},
 		},
 		{
+			name: "gemini key with explicit api version",
+			geminiKeys: []config.GeminiKey{
+				{APIKey: "api-key", BaseURL: "https://opencode.ai/zen", APIVersion: "v1"},
+			},
+			wantLen: 1,
+			validate: func(t *testing.T, auths []*coreauth.Auth) {
+				if auths[0].Attributes["api_version"] != "v1" {
+					t.Errorf("expected api_version v1, got %s", auths[0].Attributes["api_version"])
+				}
+			},
+		},
+		{
 			name: "empty api key skipped",
 			geminiKeys: []config.GeminiKey{
 				{APIKey: ""},

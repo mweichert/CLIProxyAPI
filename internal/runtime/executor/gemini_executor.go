@@ -167,7 +167,7 @@ func (e *GeminiExecutor) Execute(ctx context.Context, auth *cliproxyauth.Auth, r
 		}
 	}
 	baseURL := resolveGeminiBaseURL(auth)
-	url := fmt.Sprintf("%s/%s/models/%s:%s", baseURL, glAPIVersion, baseModel, action)
+	url := fmt.Sprintf("%s/%s/models/%s:%s", baseURL, resolveGeminiAPIVersion(auth), baseModel, action)
 	if opts.Alt != "" && action != "countTokens" {
 		url = url + fmt.Sprintf("?$alt=%s", opts.Alt)
 	}
@@ -274,7 +274,7 @@ func (e *GeminiExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	body = capGeminiMaxOutputTokens(body, baseModel)
 
 	baseURL := resolveGeminiBaseURL(auth)
-	url := fmt.Sprintf("%s/%s/models/%s:%s", baseURL, glAPIVersion, baseModel, "streamGenerateContent")
+	url := fmt.Sprintf("%s/%s/models/%s:%s", baseURL, resolveGeminiAPIVersion(auth), baseModel, "streamGenerateContent")
 	if opts.Alt == "" {
 		url = url + "?alt=sse"
 	} else {
@@ -402,7 +402,7 @@ func (e *GeminiExecutor) executeInteractions(ctx context.Context, auth *cliproxy
 	body = helps.ApplyPayloadConfigWithRequest(e.cfg, targetName, "interactions", fromProtocol, "", body, originalTranslated, requestedModel, requestPath, opts.Headers)
 
 	baseURL := resolveGeminiBaseURL(auth)
-	url := fmt.Sprintf("%s/%s/interactions", baseURL, glAPIVersion)
+	url := fmt.Sprintf("%s/%s/interactions", baseURL, resolveGeminiAPIVersion(auth))
 	httpReq, errRequest := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if errRequest != nil {
 		return resp, errRequest
@@ -478,7 +478,7 @@ func (e *GeminiExecutor) executeInteractionsStream(ctx context.Context, auth *cl
 	body = helps.ApplyPayloadConfigWithRequest(e.cfg, targetName, "interactions", fromProtocol, "", body, originalTranslated, requestedModel, requestPath, opts.Headers)
 	body = helps.SetBoolIfDifferent(body, "stream", true)
 	baseURL := resolveGeminiBaseURL(auth)
-	url := fmt.Sprintf("%s/%s/interactions", baseURL, glAPIVersion)
+	url := fmt.Sprintf("%s/%s/interactions", baseURL, resolveGeminiAPIVersion(auth))
 	httpReq, errRequest := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if errRequest != nil {
 		return nil, errRequest
@@ -634,7 +634,7 @@ func (e *GeminiExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Aut
 	translatedReq = helps.SetStringIfDifferent(translatedReq, "model", baseModel)
 
 	baseURL := resolveGeminiBaseURL(auth)
-	url := fmt.Sprintf("%s/%s/models/%s:%s", baseURL, glAPIVersion, baseModel, "countTokens")
+	url := fmt.Sprintf("%s/%s/models/%s:%s", baseURL, resolveGeminiAPIVersion(auth), baseModel, "countTokens")
 
 	requestBody := bytes.NewReader(translatedReq)
 
@@ -714,6 +714,15 @@ func geminiAPIKey(a *cliproxyauth.Auth) string {
 	return ""
 }
 
+func resolveGeminiAPIVersion(auth *cliproxyauth.Auth) string {
+	if auth != nil && auth.Attributes != nil {
+		if version := strings.ToLower(strings.TrimSpace(auth.Attributes["api_version"])); version != "" {
+			return version
+		}
+	}
+	return glAPIVersion
+}
+
 func resolveGeminiBaseURL(auth *cliproxyauth.Auth) string {
 	base := glEndpoint
 	if auth != nil && auth.Attributes != nil {
@@ -731,34 +740,37 @@ func (e *GeminiExecutor) resolveGeminiConfig(auth *cliproxyauth.Auth) *config.Ge
 	if auth == nil || e.cfg == nil {
 		return nil
 	}
-	var attrKey, attrBase string
+	var attrKey, attrBase, attrVersion string
 	if auth.Attributes != nil {
 		attrKey = strings.TrimSpace(auth.Attributes["api_key"])
 		attrBase = strings.TrimSpace(auth.Attributes["base_url"])
+		attrVersion = strings.ToLower(strings.TrimSpace(auth.Attributes["api_version"]))
 	}
 	for i := range e.cfg.GeminiKey {
 		entry := &e.cfg.GeminiKey[i]
 		cfgKey := strings.TrimSpace(entry.APIKey)
 		cfgBase := strings.TrimSpace(entry.BaseURL)
+		cfgVersion := strings.ToLower(strings.TrimSpace(entry.APIVersion))
 		if attrKey != "" && attrBase != "" {
-			if strings.EqualFold(cfgKey, attrKey) && strings.EqualFold(cfgBase, attrBase) {
+			if strings.EqualFold(cfgKey, attrKey) && strings.EqualFold(cfgBase, attrBase) && cfgVersion == attrVersion {
 				return entry
 			}
 			continue
 		}
-		if attrKey != "" && strings.EqualFold(cfgKey, attrKey) {
+		if attrKey != "" && strings.EqualFold(cfgKey, attrKey) && cfgVersion == attrVersion {
 			if cfgBase == "" || strings.EqualFold(cfgBase, attrBase) {
 				return entry
 			}
 		}
-		if attrKey == "" && attrBase != "" && strings.EqualFold(cfgBase, attrBase) {
+		if attrKey == "" && attrBase != "" && strings.EqualFold(cfgBase, attrBase) && cfgVersion == attrVersion {
 			return entry
 		}
 	}
 	if attrKey != "" {
 		for i := range e.cfg.GeminiKey {
 			entry := &e.cfg.GeminiKey[i]
-			if strings.EqualFold(strings.TrimSpace(entry.APIKey), attrKey) {
+			if strings.EqualFold(strings.TrimSpace(entry.APIKey), attrKey) &&
+				strings.ToLower(strings.TrimSpace(entry.APIVersion)) == attrVersion {
 				return entry
 			}
 		}
