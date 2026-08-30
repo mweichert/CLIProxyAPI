@@ -13,7 +13,7 @@ func TestBuildConfigChangeDetails(t *testing.T) {
 		Port:    8080,
 		AuthDir: "/tmp/auth-old",
 		GeminiKey: []config.GeminiKey{
-			{APIKey: "old", BaseURL: "http://old", ExcludedModels: []string{"old-model"}},
+			{APIKey: "old", BaseURL: "http://old", APIVersion: "v1beta", ExcludedModels: []string{"old-model"}},
 		},
 		RemoteManagement: config.RemoteManagement{
 			AllowRemote:            false,
@@ -41,7 +41,7 @@ func TestBuildConfigChangeDetails(t *testing.T) {
 		AuthDir: "/tmp/auth-new",
 		Codex:   config.CodexConfig{DisableCodexCloaking: true},
 		GeminiKey: []config.GeminiKey{
-			{APIKey: "old", BaseURL: "http://old", ExcludedModels: []string{"old-model", "extra"}},
+			{APIKey: "old", BaseURL: "http://old", APIVersion: "v1", ExcludedModels: []string{"old-model", "extra"}},
 		},
 		RemoteManagement: config.RemoteManagement{
 			AllowRemote:            true,
@@ -75,6 +75,7 @@ func TestBuildConfigChangeDetails(t *testing.T) {
 
 	expectContains(t, details, "port: 8080 -> 9090")
 	expectContains(t, details, "auth-dir: /tmp/auth-old -> /tmp/auth-new")
+	expectContains(t, details, "gemini[0].api-version: v1beta -> v1")
 	expectContains(t, details, "gemini[0].excluded-models: updated (1 -> 2 entries)")
 	expectContains(t, details, "remote-management.allow-remote: false -> true")
 	expectContains(t, details, "remote-management.disable-auto-update-panel: false -> true")
