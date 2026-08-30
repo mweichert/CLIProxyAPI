@@ -188,10 +188,11 @@ func sanitizeGeminiKeyEntries(entries []GeminiKey) []GeminiKey {
 		}
 		entry.Prefix = normalizeModelPrefix(entry.Prefix)
 		entry.BaseURL = strings.TrimSpace(entry.BaseURL)
+		entry.APIVersion = strings.ToLower(strings.TrimSpace(entry.APIVersion))
 		entry.ProxyURL = strings.TrimSpace(entry.ProxyURL)
 		entry.Headers = NormalizeHeaders(entry.Headers)
 		entry.ExcludedModels = NormalizeExcludedModels(entry.ExcludedModels)
-		uniqueKey := entry.APIKey + "|" + entry.BaseURL
+		uniqueKey := entry.APIKey + "|" + entry.BaseURL + "|" + entry.APIVersion
 		if _, exists := seen[uniqueKey]; exists {
 			continue
 		}
@@ -202,7 +203,7 @@ func sanitizeGeminiKeyEntries(entries []GeminiKey) []GeminiKey {
 }
 
 // SanitizeGeminiKeys deduplicates and normalizes Gemini credentials.
-// It uses API key + base URL as the uniqueness key.
+// It uses API key + base URL + API version as the uniqueness key.
 func (cfg *Config) SanitizeGeminiKeys() {
 	if cfg == nil {
 		return
