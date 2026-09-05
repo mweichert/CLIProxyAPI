@@ -134,10 +134,11 @@ func (m *Manager) executeHome(ctx context.Context, providers []string, req clipr
 				executorCtx = withAccessTokenFingerprintObserver(execCtx, setEffectiveAuth)
 			}
 			execute := func() (cliproxyexecutor.Response, error) {
+				requestAuth := withOpenCodeSessionHeader(preparedAuth, execReq, execOpts)
 				if countTokens {
-					return selection.Executor.CountTokens(executorCtx, preparedAuth, execReq, execOpts)
+					return selection.Executor.CountTokens(executorCtx, requestAuth, execReq, execOpts)
 				}
-				return selection.Executor.Execute(execCtx, preparedAuth, execReq, execOpts)
+				return selection.Executor.Execute(execCtx, requestAuth, execReq, execOpts)
 			}
 			response, errExecute = execute()
 			refreshAuth := preparedAuth
