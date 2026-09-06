@@ -185,3 +185,22 @@ func TestApplyOAuthModelAlias_PerAuthAlias(t *testing.T) {
 		t.Fatalf("expected per-auth display name %q, got %q", "Configured GPT Five", out[0].DisplayName)
 	}
 }
+
+func TestApplyOAuthModelAlias_DisplayOnlyKeepsModelID(t *testing.T) {
+	cfg := &config.Config{
+		OAuthModelAlias: map[string][]config.OAuthModelAlias{
+			"codex": {
+				{Name: "gpt-5.5", Alias: "gpt-5.5", DisplayName: "Daily Driver"},
+			},
+		},
+	}
+	models := []*ModelInfo{{ID: "gpt-5.5", Name: "models/gpt-5.5", DisplayName: "GPT-5.5"}}
+
+	out := applyOAuthModelAlias(cfg, "codex", "oauth", models)
+	if len(out) != 1 || out[0].ID != "gpt-5.5" {
+		t.Fatalf("display-only override changed model identity: %#v", out)
+	}
+	if out[0].DisplayName != "Daily Driver" {
+		t.Fatalf("display-only override = %q, want Daily Driver", out[0].DisplayName)
+	}
+}
