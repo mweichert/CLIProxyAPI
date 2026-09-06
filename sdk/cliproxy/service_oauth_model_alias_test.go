@@ -224,6 +224,27 @@ func TestApplyOAuthModelAlias_DisplayOnlySurvivesYAMLLoad(t *testing.T) {
 	}
 }
 
+func TestApplyOAuthModelAlias_DisplayOnlyAppliesAlongsideForkAlias(t *testing.T) {
+	cfg := &config.Config{OAuthModelAlias: map[string][]config.OAuthModelAlias{
+		"codex": {
+			{Name: "gpt-5.6-sol", Alias: "gpt-5.6-sol-1m", DisplayName: "GPT-5.6 Sol (1M)", Fork: true},
+			{Name: "gpt-5.6-sol", Alias: "gpt-5.6-sol", DisplayName: "Daily Sol"},
+		},
+	}}
+	models := []*ModelInfo{{ID: "gpt-5.6-sol", Name: "models/gpt-5.6-sol", DisplayName: "GPT 5.6 Sol"}}
+
+	out := applyOAuthModelAlias(cfg, "codex", "oauth", models)
+	if len(out) != 2 {
+		t.Fatalf("display-plus-fork output = %#v, want original and fork", out)
+	}
+	if out[0].ID != "gpt-5.6-sol" || out[0].DisplayName != "Daily Sol" {
+		t.Fatalf("display-only original = %#v, want Daily Sol with unchanged ID", out[0])
+	}
+	if out[1].ID != "gpt-5.6-sol-1m" || out[1].DisplayName != "GPT-5.6 Sol (1M)" {
+		t.Fatalf("fork alias = %#v, want labelled 1M alias", out[1])
+	}
+}
+
 func TestApplyOAuthModelAlias_DisplayOnlyAddsMissingConfiguredModel(t *testing.T) {
 	cfg := &config.Config{OAuthModelAlias: map[string][]config.OAuthModelAlias{
 		"codex": {{Name: "gpt-5.4-mini", Alias: "gpt-5.4-mini", DisplayName: "GPT-5.4-Mini"}},

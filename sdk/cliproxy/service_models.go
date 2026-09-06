@@ -995,9 +995,18 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 			}
 		}
 		if keepOriginal {
+			original := model
+			for _, entry := range entries {
+				if strings.EqualFold(strings.TrimSpace(entry.alias), id) && entry.displayName != "" {
+					clone := *model
+					clone.DisplayName = entry.displayName
+					original = &clone
+					break
+				}
+			}
 			if _, exists := seen[key]; !exists {
 				seen[key] = struct{}{}
-				out = append(out, model)
+				out = append(out, original)
 			}
 		}
 
