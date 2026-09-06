@@ -2,6 +2,7 @@ package cliproxy
 
 import (
 	"context"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -891,9 +892,6 @@ func applyOAuthModelAlias(cfg *config.Config, provider, authKind string, models 
 }
 
 func applyOAuthModelAliasForAuth(cfg *config.Config, provider, authKind string, attributes map[string]string, models []*ModelInfo) []*ModelInfo {
-	if len(models) == 0 {
-		return models
-	}
 	channel := coreauth.OAuthModelAliasChannel(provider, authKind)
 	if channel == "" {
 		return models
@@ -966,8 +964,9 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 		return models
 	}
 
-	out := make([]*ModelInfo, 0, len(models))
-	seen := make(map[string]struct{}, len(models))
+	out := make([]*ModelInfo, 0, len(models)+len(forward))
+	seen := make(map[string]struct{}, len(models)+len(forward))
+	matched := make(map[string]struct{}, len(models))
 	for _, model := range models {
 		if model == nil {
 			continue
@@ -986,6 +985,7 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 			out = append(out, model)
 			continue
 		}
+		matched[key] = struct{}{}
 
 		keepOriginal := false
 		for _, entry := range entries {
@@ -1044,6 +1044,32 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 			}
 			seen[key] = struct{}{}
 			out = append(out, model)
+		}
+	}
+
+	missingKeys := make([]string, 0, len(forward))
+	for key := range forward {
+		if _, ok := matched[key]; !ok {
+			missingKeys = append(missingKeys, key)
+		}
+	}
+	sort.Strings(missingKeys)
+	for _, key := range missingKeys {
+		for _, entry := range forward[key] {
+			mappedID := strings.TrimSpace(entry.alias)
+			if !strings.EqualFold(mappedID, key) || entry.displayName == "" {
+				continue
+			}
+			aliasKey := strings.ToLower(mappedID)
+			if _, exists := seen[aliasKey]; exists {
+				continue
+			}
+			seen[aliasKey] = struct{}{}
+			out = append(out, &ModelInfo{
+				ID:          mappedID,
+				Name:        "models/" + mappedID,
+				DisplayName: entry.displayName,
+			})
 		}
 	}
 	return out

@@ -223,3 +223,13 @@ func TestApplyOAuthModelAlias_DisplayOnlySurvivesYAMLLoad(t *testing.T) {
 		t.Fatalf("loaded display-only override = %#v", out)
 	}
 }
+
+func TestApplyOAuthModelAlias_DisplayOnlyAddsMissingConfiguredModel(t *testing.T) {
+	cfg := &config.Config{OAuthModelAlias: map[string][]config.OAuthModelAlias{
+		"codex": {{Name: "gpt-5.4-mini", Alias: "gpt-5.4-mini", DisplayName: "GPT-5.4-Mini"}},
+	}}
+	out := applyOAuthModelAlias(cfg, "codex", "oauth", nil)
+	if len(out) != 1 || out[0].ID != "gpt-5.4-mini" || out[0].Name != "models/gpt-5.4-mini" || out[0].DisplayName != "GPT-5.4-Mini" {
+		t.Fatalf("missing display-only model = %#v", out)
+	}
+}
