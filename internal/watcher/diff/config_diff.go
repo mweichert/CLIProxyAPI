@@ -166,6 +166,9 @@ func BuildConfigChangeDetails(oldCfg, newCfg *config.Config) []string {
 			if strings.TrimSpace(o.BaseURL) != strings.TrimSpace(n.BaseURL) {
 				changes = append(changes, fmt.Sprintf("gemini[%d].base-url: %s -> %s", i, formatURL(o.BaseURL), formatURL(n.BaseURL)))
 			}
+			if strings.TrimSpace(o.APIVersion) != strings.TrimSpace(n.APIVersion) {
+				changes = append(changes, fmt.Sprintf("gemini[%d].api-version: %s -> %s", i, strings.TrimSpace(o.APIVersion), strings.TrimSpace(n.APIVersion)))
+			}
 			if strings.TrimSpace(o.ProxyURL) != strings.TrimSpace(n.ProxyURL) {
 				changes = append(changes, fmt.Sprintf("gemini[%d].proxy-url: %s -> %s", i, formatProxyURL(o.ProxyURL), formatProxyURL(n.ProxyURL)))
 			}
@@ -198,6 +201,9 @@ func BuildConfigChangeDetails(oldCfg, newCfg *config.Config) []string {
 			n := newCfg.InteractionsKey[i]
 			if strings.TrimSpace(o.BaseURL) != strings.TrimSpace(n.BaseURL) {
 				changes = append(changes, fmt.Sprintf("interactions[%d].base-url: %s -> %s", i, formatURL(o.BaseURL), formatURL(n.BaseURL)))
+			}
+			if strings.TrimSpace(o.APIVersion) != strings.TrimSpace(n.APIVersion) {
+				changes = append(changes, fmt.Sprintf("interactions[%d].api-version: %s -> %s", i, strings.TrimSpace(o.APIVersion), strings.TrimSpace(n.APIVersion)))
 			}
 			if strings.TrimSpace(o.ProxyURL) != strings.TrimSpace(n.ProxyURL) {
 				changes = append(changes, fmt.Sprintf("interactions[%d].proxy-url: %s -> %s", i, formatProxyURL(o.ProxyURL), formatProxyURL(n.ProxyURL)))

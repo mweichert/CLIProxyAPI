@@ -153,6 +153,10 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 	// Sanitize native Interactions API key configuration.
 	cfg.SanitizeInteractionsKeys()
 
+	if errValidate := cfg.ValidateGeminiAPIVersions(); errValidate != nil {
+		return nil, errValidate
+	}
+
 	// Sanitize Vertex-compatible API keys.
 	cfg.SanitizeVertexCompatKeys()
 
