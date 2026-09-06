@@ -952,7 +952,7 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 		if name == "" || alias == "" {
 			continue
 		}
-		if strings.EqualFold(name, alias) {
+		if strings.EqualFold(name, alias) && strings.TrimSpace(aliases[i].DisplayName) == "" {
 			continue
 		}
 		key := strings.ToLower(name)
@@ -1008,6 +1008,17 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 				continue
 			}
 			if strings.EqualFold(mappedID, id) {
+				if entry.displayName == "" {
+					continue
+				}
+				if _, exists := seen[key]; exists {
+					continue
+				}
+				seen[key] = struct{}{}
+				clone := *model
+				clone.DisplayName = entry.displayName
+				out = append(out, &clone)
+				addedAlias = true
 				continue
 			}
 			aliasKey := strings.ToLower(mappedID)
