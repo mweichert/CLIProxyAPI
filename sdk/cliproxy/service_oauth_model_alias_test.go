@@ -1,6 +1,8 @@
 package cliproxy
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/config"
@@ -202,5 +204,22 @@ func TestApplyOAuthModelAlias_DisplayOnlyKeepsModelID(t *testing.T) {
 	}
 	if out[0].DisplayName != "Daily Driver" {
 		t.Fatalf("display-only override = %q, want Daily Driver", out[0].DisplayName)
+	}
+}
+
+func TestApplyOAuthModelAlias_DisplayOnlySurvivesYAMLLoad(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := []byte("oauth-model-alias:\n  codex:\n    - name: gpt-5.5\n      alias: gpt-5.5\n      display-name: Daily Driver\n")
+	if err := os.WriteFile(configPath, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	models := []*ModelInfo{{ID: "gpt-5.5", Name: "models/gpt-5.5", DisplayName: "GPT-5.5"}}
+	out := applyOAuthModelAlias(cfg, "codex", "oauth", models)
+	if len(out) != 1 || out[0].ID != "gpt-5.5" || out[0].DisplayName != "Daily Driver" {
+		t.Fatalf("loaded display-only override = %#v", out)
 	}
 }

@@ -75,10 +75,11 @@ func (cfg *Config) SanitizeOAuthModelAlias() {
 		for _, entry := range aliases {
 			name := strings.TrimSpace(entry.Name)
 			alias := strings.TrimSpace(entry.Alias)
+			displayName := strings.TrimSpace(entry.DisplayName)
 			if name == "" || alias == "" {
 				continue
 			}
-			if strings.EqualFold(name, alias) {
+			if strings.EqualFold(name, alias) && displayName == "" {
 				continue
 			}
 			aliasKey := strings.ToLower(alias)
@@ -90,7 +91,7 @@ func (cfg *Config) SanitizeOAuthModelAlias() {
 				Name:         name,
 				Alias:        alias,
 				Fork:         entry.Fork,
-				DisplayName:  strings.TrimSpace(entry.DisplayName),
+				DisplayName:  displayName,
 				ForceMapping: entry.ForceMapping,
 			})
 		}
