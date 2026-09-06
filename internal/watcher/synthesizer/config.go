@@ -84,8 +84,13 @@ func (s *ConfigSynthesizer) synthesizeGeminiKeyEntries(ctx *SynthesisContext, en
 		}
 		prefix := strings.TrimSpace(entry.Prefix)
 		base := strings.TrimSpace(entry.BaseURL)
+		apiVersion := strings.ToLower(strings.TrimSpace(entry.APIVersion))
 		proxyURL := strings.TrimSpace(entry.ProxyURL)
-		id, token := idGen.Next(idKind, key, base)
+		identityBase := base
+		if apiVersion != "" {
+			identityBase += "|" + apiVersion
+		}
+		id, token := idGen.Next(idKind, key, identityBase)
 		attrs := map[string]string{
 			"source":       fmt.Sprintf("config:%s[%s]", sourceName, token),
 			"api_key":      key,
@@ -101,6 +106,9 @@ func (s *ConfigSynthesizer) synthesizeGeminiKeyEntries(ctx *SynthesisContext, en
 		addWeightToAttrs(entry.Weight, attrs)
 		if base != "" {
 			attrs["base_url"] = base
+		}
+		if apiVersion != "" {
+			attrs["api_version"] = apiVersion
 		}
 		if hash := diff.ComputeGeminiModelsHash(entry.Models); hash != "" {
 			attrs["models_hash"] = hash
