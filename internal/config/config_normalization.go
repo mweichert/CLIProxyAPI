@@ -87,12 +87,17 @@ func (cfg *Config) SanitizeOAuthModelAlias() {
 				continue
 			}
 			seenAlias[aliasKey] = struct{}{}
+			maxContextLength := entry.MaxContextLength
+			if maxContextLength < 0 || !entry.Fork {
+				maxContextLength = 0
+			}
 			clean = append(clean, OAuthModelAlias{
-				Name:         name,
-				Alias:        alias,
-				Fork:         entry.Fork,
-				DisplayName:  displayName,
-				ForceMapping: entry.ForceMapping,
+				Name:             name,
+				Alias:            alias,
+				Fork:             entry.Fork,
+				DisplayName:      displayName,
+				MaxContextLength: maxContextLength,
+				ForceMapping:     entry.ForceMapping,
 			})
 		}
 		if len(clean) > 0 {
