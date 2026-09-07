@@ -523,6 +523,10 @@ type GeminiKey struct {
 	// BaseURL optionally overrides the Gemini API endpoint.
 	BaseURL string `yaml:"base-url,omitempty" json:"base-url,omitempty"`
 
+	// APIVersion optionally overrides the Gemini API version path segment.
+	// Empty preserves the upstream-compatible v1beta default.
+	APIVersion string `yaml:"api-version,omitempty" json:"api-version,omitempty"`
+
 	// ProxyURL optionally overrides the global proxy for this API key.
 	ProxyURL string `yaml:"proxy-url,omitempty" json:"proxy-url,omitempty"`
 
@@ -542,6 +546,8 @@ type GeminiKey struct {
 func (k GeminiKey) GetAPIKey() string { return k.APIKey }
 
 func (k GeminiKey) GetBaseURL() string { return k.BaseURL }
+
+func (k GeminiKey) GetAPIVersion() string { return k.APIVersion }
 
 func (k GeminiKey) GetPrefix() string { return k.Prefix }
 
