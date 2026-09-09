@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	codexBuiltinReserveModelID    = "gpt-reserve"
 	codexBuiltinImage15ModelID    = "gpt-image-1.5"
 	codexBuiltinImageModelID      = "gpt-image-2"
 	xaiBuiltinImageModelID        = "grok-imagine-image"
@@ -115,7 +116,7 @@ func GetXAIModels() []*ModelInfo {
 // not depend on remote models.json updates. Built-ins replace any matching IDs
 // already present in the provided slice.
 func WithCodexBuiltins(models []*ModelInfo) []*ModelInfo {
-	return upsertModelInfos(models, codexBuiltinImage15ModelInfo(), codexBuiltinImageModelInfo())
+	return upsertModelInfos(models, codexBuiltinReserveModelInfo(), codexBuiltinImage15ModelInfo(), codexBuiltinImageModelInfo())
 }
 
 // WithXAIBuiltins injects hard-coded xAI image/video model definitions that should
@@ -130,6 +131,21 @@ func normalizeAntigravityCapabilityModelID(modelID string) string {
 		modelID = strings.TrimSpace(modelID[:open])
 	}
 	return modelID
+}
+
+func codexBuiltinReserveModelInfo() *ModelInfo {
+	return &ModelInfo{
+		ID:                  codexBuiltinReserveModelID,
+		Object:              "model",
+		Created:             1704067200, // 2024-01-01
+		OwnedBy:             "openai",
+		Type:                "openai",
+		DisplayName:         "GPT Reserve",
+		Version:             codexBuiltinReserveModelID,
+		ContextLength:       272000,
+		MaxContextLength:    872000,
+		MaxCompletionTokens: 128000,
+	}
 }
 
 func codexBuiltinImage15ModelInfo() *ModelInfo {
