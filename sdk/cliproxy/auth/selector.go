@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
@@ -66,6 +68,29 @@ func weightedSelectorStateModel(ctx context.Context, availabilityModel string) s
 type FillFirstSelector struct{}
 
 type blockReason int
+
+const modelEligibilityDiagnosticFieldMaxBytes = 96
+
+func normalizeModelEligibilityDiagnosticField(value string) string {
+	value = strings.TrimSpace(value)
+	var normalized strings.Builder
+	normalized.Grow(min(len(value), modelEligibilityDiagnosticFieldMaxBytes))
+	for _, current := range value {
+		if unicode.IsControl(current) || current == '\u2028' || current == '\u2029' {
+			current = '?'
+		}
+		currentBytes := utf8.RuneLen(current)
+		if currentBytes < 0 {
+			current = unicode.ReplacementChar
+			currentBytes = utf8.RuneLen(current)
+		}
+		if normalized.Len()+currentBytes > modelEligibilityDiagnosticFieldMaxBytes {
+			break
+		}
+		normalized.WriteRune(current)
+	}
+	return normalized.String()
+}
 
 const (
 	blockReasonNone blockReason = iota
