@@ -72,6 +72,10 @@ type Config struct {
 	// 0 keeps the legacy default cooldown. Negative values disable these cooldowns.
 	TransientErrorCooldownSeconds int `yaml:"transient-error-cooldown-seconds" json:"transient-error-cooldown-seconds"`
 
+	// ModelNotFoundCooldownSeconds controls cooldowns for model-not-found errors.
+	// 0 keeps the legacy 12-hour cooldown. Negative values disable these cooldowns.
+	ModelNotFoundCooldownSeconds int `yaml:"model-not-found-cooldown-seconds" json:"model-not-found-cooldown-seconds"`
+
 	// AuthAutoRefreshWorkers overrides the size of the core auth auto-refresh worker pool.
 	// When <= 0, the default worker count is used.
 	AuthAutoRefreshWorkers int `yaml:"auth-auto-refresh-workers" json:"auth-auto-refresh-workers"`

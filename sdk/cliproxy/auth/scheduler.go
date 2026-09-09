@@ -2,6 +2,9 @@ package auth
 
 import (
 	"context"
+	"fmt"
+	"math"
+	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -458,7 +461,9 @@ func (s *authScheduler) mixedUnavailableErrorLocked(providers []string, model st
 	now := time.Now()
 	total := 0
 	cooldownCount := 0
-	earliest := time.Time{}
+	finiteBlockedCount := 0
+	earliestCooldown := time.Time{}
+	earliestBlocked := time.Time{}
 	for _, providerKey := range providers {
 		providerState := s.providers[providerKey]
 		if providerState == nil {
@@ -468,22 +473,29 @@ func (s *authScheduler) mixedUnavailableErrorLocked(providers []string, model st
 		if shard == nil {
 			continue
 		}
-		localTotal, localCooldownCount, localEarliest := shard.availabilitySummaryLocked(predicate)
+		localTotal, localCooldownCount, localFiniteBlockedCount, localEarliestCooldown, localEarliestBlocked := shard.availabilitySummaryLocked(predicate)
 		total += localTotal
 		cooldownCount += localCooldownCount
-		if !localEarliest.IsZero() && (earliest.IsZero() || localEarliest.Before(earliest)) {
-			earliest = localEarliest
+		finiteBlockedCount += localFiniteBlockedCount
+		if !localEarliestCooldown.IsZero() && (earliestCooldown.IsZero() || localEarliestCooldown.Before(earliestCooldown)) {
+			earliestCooldown = localEarliestCooldown
+		}
+		if !localEarliestBlocked.IsZero() && (earliestBlocked.IsZero() || localEarliestBlocked.Before(earliestBlocked)) {
+			earliestBlocked = localEarliestBlocked
 		}
 	}
 	if total == 0 {
 		return &Error{Code: "auth_not_found", Message: "no auth available"}
 	}
-	if cooldownCount == total && !earliest.IsZero() {
-		resetIn := earliest.Sub(now)
+	if cooldownCount == total && !earliestCooldown.IsZero() {
+		resetIn := earliestCooldown.Sub(now)
 		if resetIn < 0 {
 			resetIn = 0
 		}
 		return newModelCooldownError(model, "", resetIn)
+	}
+	if finiteBlockedCount == total && !earliestBlocked.IsZero() {
+		return newTimedBlockedUnavailableError(total, earliestBlocked.Sub(now))
 	}
 	return &Error{Code: "auth_unavailable", Message: "no auth available"}
 }
@@ -880,32 +892,52 @@ func (m *modelScheduler) readyCountAtPriorityLocked(preferWebsocket bool, priori
 // unavailableErrorLocked returns the correct unavailable or cooldown error for the shard.
 func (m *modelScheduler) unavailableErrorLocked(provider, model string, predicate func(*scheduledAuth) bool) error {
 	now := time.Now()
-	total, cooldownCount, earliest := m.availabilitySummaryLocked(predicate)
+	total, cooldownCount, finiteBlockedCount, earliestCooldown, earliestBlocked := m.availabilitySummaryLocked(predicate)
 	if total == 0 {
 		return &Error{Code: "auth_not_found", Message: "no auth available"}
 	}
-	if cooldownCount == total && !earliest.IsZero() {
+	if cooldownCount == total && !earliestCooldown.IsZero() {
 		providerForError := provider
 		if providerForError == "mixed" {
 			providerForError = ""
 		}
-		resetIn := earliest.Sub(now)
+		resetIn := earliestCooldown.Sub(now)
 		if resetIn < 0 {
 			resetIn = 0
 		}
 		return newModelCooldownError(model, providerForError, resetIn)
 	}
+	if finiteBlockedCount == total && !earliestBlocked.IsZero() {
+		return newTimedBlockedUnavailableError(total, earliestBlocked.Sub(now))
+	}
 	return &Error{Code: "auth_unavailable", Message: "no auth available"}
 }
 
-// availabilitySummaryLocked summarizes total candidates, cooldown count, and earliest retry time.
-func (m *modelScheduler) availabilitySummaryLocked(predicate func(*scheduledAuth) bool) (int, int, time.Time) {
+func newTimedBlockedUnavailableError(total int, resetIn time.Duration) *Error {
+	if resetIn < 0 {
+		resetIn = 0
+	}
+	resetSeconds := int(math.Ceil(resetIn.Seconds()))
+	if resetSeconds < 0 {
+		resetSeconds = 0
+	}
+	return &Error{
+		Code:       "auth_unavailable",
+		Message:    fmt.Sprintf("no auth available; blocked=%d/%d; retry_after_seconds=%d", total, total, resetSeconds),
+		HTTPStatus: http.StatusServiceUnavailable,
+	}
+}
+
+// availabilitySummaryLocked summarizes candidates by quota cooldown and finite non-quota block.
+func (m *modelScheduler) availabilitySummaryLocked(predicate func(*scheduledAuth) bool) (int, int, int, time.Time, time.Time) {
 	if m == nil {
-		return 0, 0, time.Time{}
+		return 0, 0, 0, time.Time{}, time.Time{}
 	}
 	total := 0
 	cooldownCount := 0
-	earliest := time.Time{}
+	finiteBlockedCount := 0
+	earliestCooldown := time.Time{}
+	earliestBlocked := time.Time{}
 	for _, entry := range m.entries {
 		if predicate != nil && !predicate(entry) {
 			continue
@@ -914,15 +946,23 @@ func (m *modelScheduler) availabilitySummaryLocked(predicate func(*scheduledAuth
 		if entry == nil || entry.auth == nil {
 			continue
 		}
-		if entry.state != scheduledStateCooldown {
-			continue
-		}
-		cooldownCount++
-		if !entry.nextRetryAt.IsZero() && (earliest.IsZero() || entry.nextRetryAt.Before(earliest)) {
-			earliest = entry.nextRetryAt
+		switch entry.state {
+		case scheduledStateCooldown:
+			cooldownCount++
+			if !entry.nextRetryAt.IsZero() && (earliestCooldown.IsZero() || entry.nextRetryAt.Before(earliestCooldown)) {
+				earliestCooldown = entry.nextRetryAt
+			}
+		case scheduledStateBlocked:
+			if entry.nextRetryAt.IsZero() {
+				continue
+			}
+			finiteBlockedCount++
+			if earliestBlocked.IsZero() || entry.nextRetryAt.Before(earliestBlocked) {
+				earliestBlocked = entry.nextRetryAt
+			}
 		}
 	}
-	return total, cooldownCount, earliest
+	return total, cooldownCount, finiteBlockedCount, earliestCooldown, earliestBlocked
 }
 
 // rebuildIndexesLocked reconstructs ready and blocked views from the current entry map.

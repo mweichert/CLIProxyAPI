@@ -18,11 +18,14 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/thinking"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+	log "github.com/sirupsen/logrus"
 )
 
 var quotaCooldownDisabled atomic.Bool
 
 var transientErrorCooldownSeconds atomic.Int64
+
+var modelNotFoundCooldownSeconds atomic.Int64
 
 // SetQuotaCooldownDisabled toggles quota cooldown scheduling globally.
 func SetQuotaCooldownDisabled(disable bool) {
@@ -33,6 +36,12 @@ func SetQuotaCooldownDisabled(disable bool) {
 // 0 keeps the legacy default; negative values disable transient error cooldowns.
 func SetTransientErrorCooldownSeconds(seconds int) {
 	transientErrorCooldownSeconds.Store(int64(seconds))
+}
+
+// SetModelNotFoundCooldownSeconds configures model-not-found and model-not-supported cooldowns.
+// 0 keeps the legacy 12-hour default; negative values disable these cooldowns.
+func SetModelNotFoundCooldownSeconds(seconds int) {
+	modelNotFoundCooldownSeconds.Store(int64(seconds))
 }
 
 func quotaCooldownDisabledForAuth(auth *Auth) bool {
@@ -94,6 +103,20 @@ func recoverableFailureRetryAfter(now time.Time, disableCooling bool) time.Time 
 		return time.Time{}
 	}
 	return nextTransientErrorRetryAfter(now)
+}
+
+func modelNotFoundRetryAfter(now time.Time, disableCooling bool) time.Time {
+	if disableCooling {
+		return time.Time{}
+	}
+	seconds := modelNotFoundCooldownSeconds.Load()
+	if seconds < 0 {
+		return time.Time{}
+	}
+	if seconds == 0 {
+		return now.Add(12 * time.Hour)
+	}
+	return now.Add(time.Duration(seconds) * time.Second)
 }
 
 // SetConfig updates the runtime config snapshot used by request-time helpers.
@@ -705,6 +728,7 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 	suspendReason := ""
 	clearModelQuota := false
 	setModelQuota := false
+	var eligibilityRetryAt time.Time
 	var authSnapshot *Auth
 	cooldownStateChanged := false
 
@@ -756,10 +780,14 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 
 					statusCode := statusCodeFromResult(result.Error)
 					if isModelSupportResultError(result.Error) {
-						next := now.Add(12 * time.Hour)
+						next := modelNotFoundRetryAfter(now, disableCooling)
 						state.NextRetryAfter = next
-						suspendReason = "model_not_supported"
-						shouldSuspendModel = true
+						state.Unavailable = !next.IsZero()
+						if !next.IsZero() {
+							suspendReason = "model_not_supported"
+							shouldSuspendModel = true
+							eligibilityRetryAt = next
+						}
 					} else if isCloudflareChallengeResultError(result.Error) {
 						next, backoffLevel := nextCloudflareCooldown(state.Quota.BackoffLevel, disableCooling, now)
 						state.NextRetryAfter = next
@@ -802,13 +830,13 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 								shouldSuspendModel = true
 							}
 						case 404:
-							if disableCooling {
-								state.NextRetryAfter = time.Time{}
-							} else {
-								next := now.Add(12 * time.Hour)
-								state.NextRetryAfter = next
+							next := modelNotFoundRetryAfter(now, disableCooling)
+							state.NextRetryAfter = next
+							state.Unavailable = !next.IsZero()
+							if !next.IsZero() {
 								suspendReason = "not_found"
 								shouldSuspendModel = true
+								eligibilityRetryAt = next
 							}
 						case 429:
 							var next time.Time
@@ -852,6 +880,10 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 			} else {
 				disableCooling := m.cooldownDisabledForAuth(auth)
 				applyAuthFailureState(auth, result.Error, result.RetryAfter, now, disableCooling)
+				if statusCodeFromResult(result.Error) == http.StatusNotFound && !shouldSkipCredentialCooldown(result.Error) && auth.NextRetryAfter.After(now) {
+					suspendReason = "not_found"
+					eligibilityRetryAt = auth.NextRetryAfter
+				}
 			}
 		}
 
@@ -868,6 +900,20 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 	}
 	if authSnapshot != nil && cooldownStateChanged {
 		m.persistCooldownStates(context.Background())
+	}
+	if authSnapshot != nil && !eligibilityRetryAt.IsZero() && suspendReason != "" {
+		authIndex := authSnapshot.EnsureIndex()
+		provider := strings.TrimSpace(result.Provider)
+		if provider == "" {
+			provider = strings.TrimSpace(authSnapshot.Provider)
+		}
+		log.WithFields(log.Fields{
+			"provider":   provider,
+			"model":      modelKey,
+			"auth_index": authIndex,
+			"reason":     suspendReason,
+			"retry_at":   eligibilityRetryAt.UTC().Format(time.RFC3339Nano),
+		}).Info("model eligibility cooldown scheduled")
 	}
 
 	if clearModelQuota && modelKey != "" {
@@ -1773,11 +1819,8 @@ func applyAuthFailureState(auth *Auth, resultErr *Error, retryAfter *time.Durati
 		}
 	case 404:
 		auth.StatusMessage = "not_found"
-		if disableCooling {
-			auth.NextRetryAfter = time.Time{}
-		} else {
-			auth.NextRetryAfter = now.Add(12 * time.Hour)
-		}
+		auth.NextRetryAfter = modelNotFoundRetryAfter(now, disableCooling)
+		auth.Unavailable = !auth.NextRetryAfter.IsZero()
 	case 429:
 		auth.StatusMessage = "quota exhausted"
 		auth.Quota.Exceeded = true
