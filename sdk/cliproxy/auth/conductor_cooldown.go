@@ -903,13 +903,13 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 	}
 	if authSnapshot != nil && !eligibilityRetryAt.IsZero() && suspendReason != "" {
 		authIndex := authSnapshot.EnsureIndex()
-		provider := strings.TrimSpace(result.Provider)
-		if provider == "" {
-			provider = strings.TrimSpace(authSnapshot.Provider)
+		provider := result.Provider
+		if strings.TrimSpace(provider) == "" {
+			provider = authSnapshot.Provider
 		}
 		log.WithFields(log.Fields{
-			"provider":   provider,
-			"model":      modelKey,
+			"provider":   normalizeModelEligibilityDiagnosticField(provider),
+			"model":      normalizeModelEligibilityDiagnosticField(modelKey),
 			"auth_index": authIndex,
 			"reason":     suspendReason,
 			"retry_at":   eligibilityRetryAt.UTC().Format(time.RFC3339Nano),

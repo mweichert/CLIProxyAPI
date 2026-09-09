@@ -494,8 +494,14 @@ func (s *authScheduler) mixedUnavailableErrorLocked(providers []string, model st
 		}
 		return newModelCooldownError(model, "", resetIn)
 	}
-	if finiteBlockedCount == total && !earliestBlocked.IsZero() {
-		return newTimedBlockedUnavailableError(total, earliestBlocked.Sub(now))
+	if cooldownCount+finiteBlockedCount == total {
+		earliestFinite := earliestBlocked
+		if !earliestCooldown.IsZero() && (earliestFinite.IsZero() || earliestCooldown.Before(earliestFinite)) {
+			earliestFinite = earliestCooldown
+		}
+		if !earliestFinite.IsZero() {
+			return newTimedBlockedUnavailableError(total, earliestFinite.Sub(now))
+		}
 	}
 	return &Error{Code: "auth_unavailable", Message: "no auth available"}
 }
@@ -907,8 +913,14 @@ func (m *modelScheduler) unavailableErrorLocked(provider, model string, predicat
 		}
 		return newModelCooldownError(model, providerForError, resetIn)
 	}
-	if finiteBlockedCount == total && !earliestBlocked.IsZero() {
-		return newTimedBlockedUnavailableError(total, earliestBlocked.Sub(now))
+	if cooldownCount+finiteBlockedCount == total {
+		earliestFinite := earliestBlocked
+		if !earliestCooldown.IsZero() && (earliestFinite.IsZero() || earliestCooldown.Before(earliestFinite)) {
+			earliestFinite = earliestCooldown
+		}
+		if !earliestFinite.IsZero() {
+			return newTimedBlockedUnavailableError(total, earliestFinite.Sub(now))
+		}
 	}
 	return &Error{Code: "auth_unavailable", Message: "no auth available"}
 }
