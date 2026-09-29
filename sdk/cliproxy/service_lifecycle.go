@@ -56,9 +56,12 @@ func (s *Service) Run(ctx context.Context) error {
 		redisqueue.SetUsageStatisticsEnabled(true)
 	}
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer shutdownCancel()
 	defer func() {
+		// Start the drain window when shutdown begins. A deadline created when Run
+		// started had already expired for any stop more than 30 s after launch, so
+		// in-flight streams were cut instead of drained.
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), s.shutdownDrainTimeout())
+		defer shutdownCancel()
 		if err := s.Shutdown(shutdownCtx); err != nil {
 			log.Errorf("service shutdown returned error: %v", err)
 		}
@@ -317,7 +320,7 @@ func (s *Service) Shutdown(ctx context.Context) error {
 		// no legacy clients to persist
 
 		if s.server != nil {
-			shutdownCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			shutdownCtx, cancel := context.WithTimeout(ctx, s.shutdownDrainTimeout())
 			defer cancel()
 			if err := s.server.Stop(shutdownCtx); err != nil {
 				log.Errorf("error stopping API server: %v", err)

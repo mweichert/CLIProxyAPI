@@ -44,6 +44,12 @@ func StartServiceWithPluginHost(cfg *config.Config, configPath string, localPass
 
 	ctxSignal, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+	// The first signal starts a bounded drain of in-flight requests. Restore the
+	// default signal behaviour then, so a second SIGINT/SIGTERM exits at once.
+	go func() {
+		<-ctxSignal.Done()
+		cancel()
+	}()
 
 	runCtx := ctxSignal
 	if localPassword != "" {
