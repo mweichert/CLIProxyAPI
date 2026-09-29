@@ -103,6 +103,9 @@ type Server struct {
 
 	exampleAPIKeySafeModeEnabled bool
 	exampleAPIKeySafeModeActive  atomic.Bool
+
+	// inFlight counts requests inside the HTTP handler, for shutdown drain logs.
+	inFlight atomic.Int64
 }
 
 // NewServer creates and initializes a new API server instance.
@@ -248,7 +251,7 @@ func NewServer(cfg *config.Config, authManager *auth.Manager, accessManager *sdk
 	// Create HTTP server
 	s.server = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		Handler: engine,
+		Handler: s.trackInFlight(engine),
 	}
 
 	return s
@@ -358,11 +361,12 @@ func (s *Server) Start() error {
 	}
 }
 
-// Stop gracefully shuts down the API server without interrupting any
-// active connections.
+// Stop gracefully shuts down the API server. New connections are refused at
+// once; in-flight requests may finish until ctx ends, after which their
+// connections are force-closed.
 //
 // Parameters:
-//   - ctx: The context for graceful shutdown
+//   - ctx: Bounds the drain of in-flight requests
 //
 // Returns:
 //   - error: An error if the server fails to stop
@@ -385,8 +389,8 @@ func (s *Server) Stop(ctx context.Context) error {
 		}
 	}
 
-	// Shutdown the HTTP server.
-	errShutdown := s.server.Shutdown(ctx)
+	// Shutdown the HTTP server, draining in-flight requests until ctx ends.
+	errShutdown := s.drainHTTPServer(ctx)
 	if s.codexLiveHandler != nil {
 		s.codexLiveHandler.Close()
 	}

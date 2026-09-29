@@ -98,6 +98,9 @@ type Service struct {
 	// shutdownOnce ensures shutdown is called only once.
 	shutdownOnce sync.Once
 
+	// drainTimeout overrides defaultShutdownDrainTimeout when positive.
+	drainTimeout time.Duration
+
 	// wsGateway manages websocket Gemini providers.
 	wsGateway *wsrelay.Manager
 
