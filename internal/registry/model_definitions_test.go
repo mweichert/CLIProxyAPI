@@ -16,6 +16,28 @@ func TestModelOverrideHeadersFromEmbeddedModels(t *testing.T) {
 	}
 }
 
+func TestWithCodexBuiltinsPreservesReserveAcrossRemoteCatalogRefresh(t *testing.T) {
+	models := WithCodexBuiltins([]*ModelInfo{{ID: "gpt-5.5"}})
+	found := make(map[string]*ModelInfo, len(models))
+	for _, model := range models {
+		if model != nil {
+			found[model.ID] = model
+		}
+	}
+
+	for _, identifier := range []string{codexBuiltinReserveModelID, codexBuiltinImage15ModelID, codexBuiltinImageModelID} {
+		if found[identifier] == nil {
+			t.Fatalf("expected Codex builtin model %s", identifier)
+		}
+	}
+	if found[codexBuiltinReserveModelID].ContextLength != 272000 {
+		t.Fatalf("reserve context length = %d, want 272000", found[codexBuiltinReserveModelID].ContextLength)
+	}
+	if found[codexBuiltinReserveModelID].MaxContextLength != 872000 {
+		t.Fatalf("reserve max context length = %d, want 872000", found[codexBuiltinReserveModelID].MaxContextLength)
+	}
+}
+
 func TestGeminiVertexModelsUseFlashLiteReleaseID(t *testing.T) {
 	const releaseID = "gemini-3.1-flash-lite"
 	const previewID = releaseID + "-preview"
