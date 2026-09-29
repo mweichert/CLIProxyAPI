@@ -68,6 +68,42 @@ func TestApplyOAuthModelAlias_ForkAddsAlias(t *testing.T) {
 	}
 }
 
+func TestApplyOAuthModelAlias_ForkMaxContextLength(t *testing.T) {
+	cfg := &config.Config{
+		OAuthModelAlias: map[string][]config.OAuthModelAlias{
+			"codex": {
+				{
+					Name:             "gpt-6-astra",
+					Alias:            "gpt-6-astra-1m",
+					Fork:             true,
+					DisplayName:      "GPT 6.0 Astra (1M)",
+					MaxContextLength: 921000,
+				},
+			},
+		},
+	}
+	models := []*ModelInfo{
+		{
+			ID:               "gpt-6-astra",
+			Name:             "models/gpt-6-astra",
+			DisplayName:      "GPT 6.0 Astra",
+			ContextLength:    272000,
+			MaxContextLength: 872000,
+		},
+	}
+
+	out := applyOAuthModelAlias(cfg, "codex", "oauth", models)
+	if len(out) != 2 {
+		t.Fatalf("expected 2 models, got %d", len(out))
+	}
+	if out[0].ContextLength != 272000 || out[0].MaxContextLength != 872000 {
+		t.Fatalf("original context changed: %#v", out[0])
+	}
+	if out[1].ID != "gpt-6-astra-1m" || out[1].ContextLength != 921000 || out[1].MaxContextLength != 921000 {
+		t.Fatalf("fork context = %#v, want 921000", out[1])
+	}
+}
+
 func TestApplyOAuthModelAlias_PreservesUpstreamDisplayNameByDefault(t *testing.T) {
 	cfg := &config.Config{
 		OAuthModelAlias: map[string][]config.OAuthModelAlias{
