@@ -2,6 +2,7 @@ package cliproxy
 
 import (
 	"context"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -891,9 +892,6 @@ func applyOAuthModelAlias(cfg *config.Config, provider, authKind string, models 
 }
 
 func applyOAuthModelAliasForAuth(cfg *config.Config, provider, authKind string, attributes map[string]string, models []*ModelInfo) []*ModelInfo {
-	if len(models) == 0 {
-		return models
-	}
 	channel := coreauth.OAuthModelAliasChannel(provider, authKind)
 	if channel == "" {
 		return models
@@ -952,7 +950,7 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 		if name == "" || alias == "" {
 			continue
 		}
-		if strings.EqualFold(name, alias) {
+		if strings.EqualFold(name, alias) && strings.TrimSpace(aliases[i].DisplayName) == "" {
 			continue
 		}
 		key := strings.ToLower(name)
@@ -966,8 +964,9 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 		return models
 	}
 
-	out := make([]*ModelInfo, 0, len(models))
-	seen := make(map[string]struct{}, len(models))
+	out := make([]*ModelInfo, 0, len(models)+len(forward))
+	seen := make(map[string]struct{}, len(models)+len(forward))
+	matched := make(map[string]struct{}, len(models))
 	for _, model := range models {
 		if model == nil {
 			continue
@@ -986,6 +985,7 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 			out = append(out, model)
 			continue
 		}
+		matched[key] = struct{}{}
 
 		keepOriginal := false
 		for _, entry := range entries {
@@ -995,9 +995,18 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 			}
 		}
 		if keepOriginal {
+			original := model
+			for _, entry := range entries {
+				if strings.EqualFold(strings.TrimSpace(entry.alias), id) && entry.displayName != "" {
+					clone := *model
+					clone.DisplayName = entry.displayName
+					original = &clone
+					break
+				}
+			}
 			if _, exists := seen[key]; !exists {
 				seen[key] = struct{}{}
-				out = append(out, model)
+				out = append(out, original)
 			}
 		}
 
@@ -1008,6 +1017,17 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 				continue
 			}
 			if strings.EqualFold(mappedID, id) {
+				if entry.displayName == "" {
+					continue
+				}
+				if _, exists := seen[key]; exists {
+					continue
+				}
+				seen[key] = struct{}{}
+				clone := *model
+				clone.DisplayName = entry.displayName
+				out = append(out, &clone)
+				addedAlias = true
 				continue
 			}
 			aliasKey := strings.ToLower(mappedID)
@@ -1033,6 +1053,32 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 			}
 			seen[key] = struct{}{}
 			out = append(out, model)
+		}
+	}
+
+	missingKeys := make([]string, 0, len(forward))
+	for key := range forward {
+		if _, ok := matched[key]; !ok {
+			missingKeys = append(missingKeys, key)
+		}
+	}
+	sort.Strings(missingKeys)
+	for _, key := range missingKeys {
+		for _, entry := range forward[key] {
+			mappedID := strings.TrimSpace(entry.alias)
+			if !strings.EqualFold(mappedID, key) || entry.displayName == "" {
+				continue
+			}
+			aliasKey := strings.ToLower(mappedID)
+			if _, exists := seen[aliasKey]; exists {
+				continue
+			}
+			seen[aliasKey] = struct{}{}
+			out = append(out, &ModelInfo{
+				ID:          mappedID,
+				Name:        "models/" + mappedID,
+				DisplayName: entry.displayName,
+			})
 		}
 	}
 	return out

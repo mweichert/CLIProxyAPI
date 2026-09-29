@@ -1,6 +1,8 @@
 package cliproxy
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/config"
@@ -183,5 +185,72 @@ func TestApplyOAuthModelAlias_PerAuthAlias(t *testing.T) {
 	}
 	if out[0].DisplayName != "Configured GPT Five" {
 		t.Fatalf("expected per-auth display name %q, got %q", "Configured GPT Five", out[0].DisplayName)
+	}
+}
+
+func TestApplyOAuthModelAlias_DisplayOnlyKeepsModelID(t *testing.T) {
+	cfg := &config.Config{
+		OAuthModelAlias: map[string][]config.OAuthModelAlias{
+			"codex": {
+				{Name: "gpt-5.5", Alias: "gpt-5.5", DisplayName: "Daily Driver"},
+			},
+		},
+	}
+	models := []*ModelInfo{{ID: "gpt-5.5", Name: "models/gpt-5.5", DisplayName: "GPT-5.5"}}
+
+	out := applyOAuthModelAlias(cfg, "codex", "oauth", models)
+	if len(out) != 1 || out[0].ID != "gpt-5.5" {
+		t.Fatalf("display-only override changed model identity: %#v", out)
+	}
+	if out[0].DisplayName != "Daily Driver" {
+		t.Fatalf("display-only override = %q, want Daily Driver", out[0].DisplayName)
+	}
+}
+
+func TestApplyOAuthModelAlias_DisplayOnlySurvivesYAMLLoad(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := []byte("oauth-model-alias:\n  codex:\n    - name: gpt-5.5\n      alias: gpt-5.5\n      display-name: Daily Driver\n")
+	if err := os.WriteFile(configPath, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	models := []*ModelInfo{{ID: "gpt-5.5", Name: "models/gpt-5.5", DisplayName: "GPT-5.5"}}
+	out := applyOAuthModelAlias(cfg, "codex", "oauth", models)
+	if len(out) != 1 || out[0].ID != "gpt-5.5" || out[0].DisplayName != "Daily Driver" {
+		t.Fatalf("loaded display-only override = %#v", out)
+	}
+}
+
+func TestApplyOAuthModelAlias_DisplayOnlyAppliesAlongsideForkAlias(t *testing.T) {
+	cfg := &config.Config{OAuthModelAlias: map[string][]config.OAuthModelAlias{
+		"codex": {
+			{Name: "gpt-5.6-sol", Alias: "gpt-5.6-sol-1m", DisplayName: "GPT-5.6 Sol (1M)", Fork: true},
+			{Name: "gpt-5.6-sol", Alias: "gpt-5.6-sol", DisplayName: "Daily Sol"},
+		},
+	}}
+	models := []*ModelInfo{{ID: "gpt-5.6-sol", Name: "models/gpt-5.6-sol", DisplayName: "GPT 5.6 Sol"}}
+
+	out := applyOAuthModelAlias(cfg, "codex", "oauth", models)
+	if len(out) != 2 {
+		t.Fatalf("display-plus-fork output = %#v, want original and fork", out)
+	}
+	if out[0].ID != "gpt-5.6-sol" || out[0].DisplayName != "Daily Sol" {
+		t.Fatalf("display-only original = %#v, want Daily Sol with unchanged ID", out[0])
+	}
+	if out[1].ID != "gpt-5.6-sol-1m" || out[1].DisplayName != "GPT-5.6 Sol (1M)" {
+		t.Fatalf("fork alias = %#v, want labelled 1M alias", out[1])
+	}
+}
+
+func TestApplyOAuthModelAlias_DisplayOnlyAddsMissingConfiguredModel(t *testing.T) {
+	cfg := &config.Config{OAuthModelAlias: map[string][]config.OAuthModelAlias{
+		"codex": {{Name: "gpt-5.4-mini", Alias: "gpt-5.4-mini", DisplayName: "GPT-5.4-Mini"}},
+	}}
+	out := applyOAuthModelAlias(cfg, "codex", "oauth", nil)
+	if len(out) != 1 || out[0].ID != "gpt-5.4-mini" || out[0].Name != "models/gpt-5.4-mini" || out[0].DisplayName != "GPT-5.4-Mini" {
+		t.Fatalf("missing display-only model = %#v", out)
 	}
 }
