@@ -290,3 +290,43 @@ func TestApplyOAuthModelAlias_DisplayOnlyAddsMissingConfiguredModel(t *testing.T
 		t.Fatalf("missing display-only model = %#v", out)
 	}
 }
+
+func TestApplyOAuthModelAlias_DiscoveredModelForkMaxContextLength(t *testing.T) {
+	canonical := config.OAuthModelAlias{Name: "gpt-6.1-sol", Alias: "gpt-6.1-sol", DisplayName: "GPT-6.1-Sol"}
+	fork := config.OAuthModelAlias{
+		Name: "gpt-6.1-sol", Alias: "gpt-6.1-sol-1m", DisplayName: "GPT-6.1-Sol (1M)",
+		Fork: true, ForceMapping: true, MaxContextLength: 921000,
+	}
+	for name, aliases := range map[string][]config.OAuthModelAlias{
+		"canonical-first": {canonical, fork},
+		"fork-first":      {fork, canonical},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := &config.Config{OAuthModelAlias: map[string][]config.OAuthModelAlias{"codex": aliases}}
+			existing := &ModelInfo{ID: "gpt-6-astra", ContextLength: 272000}
+			models := []*ModelInfo{existing}
+			out := applyOAuthModelAlias(cfg, "codex", "oauth", models)
+			if len(out) != 3 {
+				t.Fatalf("models = %#v, want existing model, discovered source and 1M fork", out)
+			}
+			if out[0] != existing || len(models) != 1 || existing.ContextLength != 272000 {
+				t.Fatal("existing models were changed")
+			}
+			if out[1].ID != canonical.Name || out[1].DisplayName != canonical.DisplayName || out[1].ContextLength != 0 || out[1].MaxContextLength != 0 {
+				t.Fatalf("discovered source was changed by fork metadata: %#v", out[1])
+			}
+			if out[2].ID != fork.Alias || out[2].Name != "models/"+fork.Alias || out[2].DisplayName != fork.DisplayName || out[2].ContextLength != 921000 || out[2].MaxContextLength != 921000 {
+				t.Fatalf("discovered source's 1M fork = %#v", out[2])
+			}
+		})
+	}
+}
+
+func TestApplyOAuthModelAlias_DoesNotInventUndeclaredForkSource(t *testing.T) {
+	cfg := &config.Config{OAuthModelAlias: map[string][]config.OAuthModelAlias{
+		"codex": {{Name: "unknown-model", Alias: "unknown-model-1m", DisplayName: "Unknown (1M)", Fork: true, MaxContextLength: 921000}},
+	}}
+	if out := applyOAuthModelAlias(cfg, "codex", "oauth", nil); len(out) != 0 {
+		t.Fatalf("fork without a registered or explicitly declared source = %#v", out)
+	}
+}

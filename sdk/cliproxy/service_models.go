@@ -966,10 +966,40 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 		return models
 	}
 
-	out := make([]*ModelInfo, 0, len(models)+len(forward))
-	seen := make(map[string]struct{}, len(models)+len(forward))
-	matched := make(map[string]struct{}, len(models))
+	known := make(map[string]struct{}, len(models))
 	for _, model := range models {
+		if model != nil {
+			known[strings.ToLower(strings.TrimSpace(model.ID))] = struct{}{}
+		}
+	}
+	missingKeys := make([]string, 0, len(forward))
+	for key := range forward {
+		if _, ok := known[key]; !ok {
+			missingKeys = append(missingKeys, key)
+		}
+	}
+	sort.Strings(missingKeys)
+	// Materialize explicitly declared sources before applying aliases so new
+	// account models receive the same fork and context handling as built-ins.
+	expandedModels := append([]*ModelInfo(nil), models...)
+	for _, key := range missingKeys {
+		for _, entry := range forward[key] {
+			mappedID := strings.TrimSpace(entry.alias)
+			if !strings.EqualFold(mappedID, key) || entry.displayName == "" {
+				continue
+			}
+			expandedModels = append(expandedModels, &ModelInfo{
+				ID:          mappedID,
+				Name:        "models/" + mappedID,
+				DisplayName: entry.displayName,
+			})
+			break
+		}
+	}
+
+	out := make([]*ModelInfo, 0, len(expandedModels)+len(forward))
+	seen := make(map[string]struct{}, len(expandedModels)+len(forward))
+	for _, model := range expandedModels {
 		if model == nil {
 			continue
 		}
@@ -987,8 +1017,6 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 			out = append(out, model)
 			continue
 		}
-		matched[key] = struct{}{}
-
 		keepOriginal := false
 		for _, entry := range entries {
 			if entry.fork {
@@ -1062,30 +1090,5 @@ func applyOAuthModelAliasEntries(aliases []config.OAuthModelAlias, models []*Mod
 		}
 	}
 
-	missingKeys := make([]string, 0, len(forward))
-	for key := range forward {
-		if _, ok := matched[key]; !ok {
-			missingKeys = append(missingKeys, key)
-		}
-	}
-	sort.Strings(missingKeys)
-	for _, key := range missingKeys {
-		for _, entry := range forward[key] {
-			mappedID := strings.TrimSpace(entry.alias)
-			if !strings.EqualFold(mappedID, key) || entry.displayName == "" {
-				continue
-			}
-			aliasKey := strings.ToLower(mappedID)
-			if _, exists := seen[aliasKey]; exists {
-				continue
-			}
-			seen[aliasKey] = struct{}{}
-			out = append(out, &ModelInfo{
-				ID:          mappedID,
-				Name:        "models/" + mappedID,
-				DisplayName: entry.displayName,
-			})
-		}
-	}
 	return out
 }
