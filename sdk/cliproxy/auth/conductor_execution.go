@@ -349,7 +349,8 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 			if !restoreExecutionModel {
 				execReq = attachResolvedAPIKeyModelInfo(routing, execReq, auth, routeModel, upstreamModel)
 			}
-			resp, errExec := executor.Execute(execCtx, auth, execReq, execOpts)
+			requestAuth := withOpenCodeSessionHeader(auth, execReq, execOpts)
+			resp, errExec := executor.Execute(execCtx, requestAuth, execReq, execOpts)
 			if errExec != nil {
 				if errCtx := execCtx.Err(); errCtx != nil {
 					return cliproxyexecutor.Response{}, errCtx
@@ -357,7 +358,8 @@ func (m *Manager) executeMixedOnce(ctx context.Context, providers []string, req 
 				if refreshed, okRefresh := m.tryRefreshAfterUnauthorized(execCtx, auth, errExec, didRefreshOnUnauthorized); okRefresh {
 					auth = refreshed
 					didRefreshOnUnauthorized = true
-					resp, errExec = executor.Execute(execCtx, auth, execReq, execOpts)
+					requestAuth = withOpenCodeSessionHeader(auth, execReq, execOpts)
+					resp, errExec = executor.Execute(execCtx, requestAuth, execReq, execOpts)
 					if errExec != nil {
 						if errCtx := execCtx.Err(); errCtx != nil {
 							return cliproxyexecutor.Response{}, errCtx
@@ -476,7 +478,8 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 			if !restoreExecutionModel {
 				execReq = attachResolvedAPIKeyModelInfo(routing, execReq, auth, routeModel, upstreamModel)
 			}
-			resp, errExec := executor.CountTokens(execCtx, auth, execReq, execOpts)
+			requestAuth := withOpenCodeSessionHeader(auth, execReq, execOpts)
+			resp, errExec := executor.CountTokens(execCtx, requestAuth, execReq, execOpts)
 			if errExec != nil {
 				if errCtx := execCtx.Err(); errCtx != nil {
 					return cliproxyexecutor.Response{}, errCtx
@@ -484,7 +487,8 @@ func (m *Manager) executeCountMixedOnce(ctx context.Context, providers []string,
 				if refreshed, okRefresh := m.tryRefreshAfterUnauthorized(execCtx, auth, errExec, didRefreshOnUnauthorized); okRefresh {
 					auth = refreshed
 					didRefreshOnUnauthorized = true
-					resp, errExec = executor.CountTokens(execCtx, auth, execReq, execOpts)
+					requestAuth = withOpenCodeSessionHeader(auth, execReq, execOpts)
+					resp, errExec = executor.CountTokens(execCtx, requestAuth, execReq, execOpts)
 					if errExec != nil {
 						if errCtx := execCtx.Err(); errCtx != nil {
 							return cliproxyexecutor.Response{}, errCtx
